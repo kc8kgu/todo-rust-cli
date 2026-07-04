@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs::File;
-use std::io::{self, BufReader, BufWriter};
-use serde::{Deserialize, Serialize};
+use std::io::{BufReader, BufWriter};
+use std::path::Path;
 
 const PATH: &str = "todo.json";
 
@@ -13,48 +14,40 @@ struct Todo {
 }
 
 fn main() {
-
     let argv: Vec<String> = env::args().collect();
 
-     if argv.len() == 2 && argv[1] == "list" {
+    if argv.len() == 2 && argv[1] == "list" {
         list_todos();
     } else if argv.len() == 3 && argv[1] == "add" {
         add_todo(&argv[2]);
-        println!("ok");
-    } else if argv.len() == 4 && argv[1] == "edit"{
+    } else if argv.len() == 4 && argv[1] == "edit" {
         edit_todo(&argv[2], &argv[3]);
-        println!("ok");
     } else if argv.len() == 3 && argv[1] == "done" {
         done_todo(&argv[2]);
-        println!("ok");
     } else if argv.len() == 3 && argv[1] == "delete" {
         delete_todo(&argv[2]);
-        println!("ok");
     } else if argv.len() == 2 && argv[1] == "clear" {
         clear_todos();
-        println!("ok");
     } else {
         usage();
     }
 }
 
 fn usage() {
-    println!("Usage: td < list | add | edit | done | delete> <id> <title>");
+    println!("Usage: td < list | add | edit | done | delete | clear > <id> <title>");
 }
 
 fn list_todos() {
-
     let todos: Vec<Todo> = load_todos();
 
     for todo in todos {
         println!("{}, {}, {}", todo.id, todo.done, todo.title);
     }
-
 }
 
-fn add_todo(title: &String) {
+fn add_todo(title: &str) {
     let mut todos = load_todos();
-    
+
     let mut max_id = 0;
     for todo in &todos {
         if todo.id > max_id {
@@ -63,74 +56,96 @@ fn add_todo(title: &String) {
     }
 
     let next_id = max_id + 1;
-    let new_todo = Todo {id: next_id, done: false, title: title.clone()};
-    
+    let new_todo = Todo {
+        id: next_id,
+        done: false,
+        title: title.to_string(),
+    };
+
     todos.push(new_todo);
     save_todos(&todos);
 }
 
-fn edit_todo(_id: &String, _title: &String) {
-
+fn edit_todo(id: &str, title: &str) {
     let mut todos = load_todos();
-    let id = _id.parse::<u64>().unwrap();
+    let id = id.parse::<u64>().unwrap();
+    let mut found = false;
 
     for todo in &mut todos {
         if todo.id == id {
-            todo.title = _title.clone();
+            todo.title = title.to_string();
+            found = true;
             break;
         }
     }
 
-    save_todos(&todos);
+    if found {
+        save_todos(&todos);
+    } else {
+        println!("id not found");
+    }
 }
 
-fn done_todo(_id: &String) {
-
+fn done_todo(id: &str) {
     let mut todos = load_todos();
-    let id = _id.parse::<u64>().unwrap();
+    let id = id.parse::<u64>().unwrap();
+    let mut found = false;
 
     for todo in &mut todos {
         if todo.id == id {
             todo.done = !todo.done;
+            found = true;
             break;
         }
     }
 
-    save_todos(&todos);
+    if found {
+        save_todos(&todos);
+    } else {
+        println!("id not found");
+    }
 }
 
-fn delete_todo(_id: &String) {
-
+fn delete_todo(id: &str) {
     let mut todos = load_todos();
-    let id = _id.parse::<u64>().unwrap();
+    let id = id.parse::<u64>().unwrap();
+    let mut found = false;
 
     for (index, todo) in &mut todos.iter().enumerate() {
         if todo.id == id {
             todos.remove(index);
+            found = true;
             break;
         }
-    }    
-    
-    save_todos(&todos);
+    }
+
+    if found {
+        save_todos(&todos);
+    } else {
+        println!("id not found");
+    }
 }
 
 fn clear_todos() {
-
     let todos = Vec::new();
     save_todos(&todos);
 }
 
 fn load_todos() -> Vec<Todo> {
 
-    let reader: BufReader<File> = BufReader::new(File::open(PATH).unwrap());
-    let todos: Vec<Todo> = serde_json::from_reader(reader).unwrap();
+    let todos: Vec<Todo>;
+
+    if Path::exists(Path::new(PATH)) {
+        let reader: BufReader<File> = BufReader::new(File::open(PATH).unwrap());
+        todos = serde_json::from_reader(reader).unwrap();
+    } else {
+        todos = Vec::new();
+    }
 
     todos
 }
 
-
 fn save_todos(todos: &Vec<Todo>) {
-
-    let writer: BufWriter<File> = io::BufWriter::new(File::create("todo.json").unwrap());
+    let writer: BufWriter<File> = BufWriter::new(File::create(PATH).unwrap());
     serde_json::to_writer(writer, todos).unwrap();
 }
