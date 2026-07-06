@@ -147,5 +147,13 @@ fn load_todos() -> Vec<Todo> {
 
 fn save_todos(todos: &Vec<Todo>) {
     let writer: BufWriter<File> = BufWriter::new(File::create(PATH).unwrap());
+    //serde_json::to_writer(writer, todos).unwrap();
     serde_json::to_writer(writer, todos).unwrap();
 }
+
+// fn save_todos(todos: &Vec<Todo>) -> Result<(), std::io::Error>{
+//     let writer: BufWriter<File> = BufWriter::new(File::create(PATH)?);
+//     serde_json::to_writer(writer, todos)?;
+//
+//     Ok(())
+// }
