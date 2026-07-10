@@ -1,33 +1,46 @@
 # Recommendations for todo-rust-cli
 
-## 1. Robust Error Handling
-The current code uses `.unwrap()` extensively. This will cause the program to crash (panic) if:
-- The user provides a non-numeric ID.
-- The `todo.json` file is corrupted.
-- The file system is read-only or permission is denied.
+## 1. Replace panics with user-facing errors
+The biggest issue is the heavy use of `.unwrap()`. Invalid IDs, corrupt JSON, or file I/O failures currently crash the program instead of returning a useful message.
 
-**Recommendation:** Return `Result<(), Box<dyn std::error::Error>>` from `main` and use the `?` operator to handle errors gracefully.
+**Recommendation:** Return `Result` from `main` and helper functions, use `?`, and print clear errors to stderr.
 
-## 2. Use a CLI Library
-Manual argument parsing with `if/else if` is fragile and hard to scale.
+## 2. Add real tests
+`cargo test` currently passes with zero tests, so there is very little protection against regressions.
 
-**Recommendation:** Use `clap`. It provides automatic help generation, much better error messages for missing arguments, and a more declarative way to define subcommands.
+**Recommendation:** Add unit tests for parsing, add/edit/delete/done behavior, missing-ID handling, and JSON load/save round trips.
 
-## 3. Bug Fix: Path Check
-Line 138 contains a compilation error: `Path::exists(Path::new(PATH))` is not valid syntax.
+## 3. Fix the current hygiene issues
+The project still has small tool-reported issues: `cargo clippy` warns about needless late initialization in `load_todos()`, and `cargo fmt -- --check` currently fails.
 
-**Recommendation:** Use `Path::new(PATH).exists()`.
+**Recommendation:** Clean up `load_todos()` into a direct expression and format the file with `cargo fmt`.
 
-## 4. Data Integrity (Atomic Writes)
-Currently, if the program crashes or the power fails while `save_todos` is executing, `todo.json` may be left empty or corrupted because `File::create` truncates the file immediately.
+## 4. Make writes atomic
+`save_todos()` uses `File::create`, which truncates `todo.json` before serialization completes. A crash during write can lose data.
 
-**Recommendation:** Write the new data to a temporary file (e.g., `todo.json.tmp`) and then use `std::fs::rename` to replace the original file.
+**Recommendation:** Write to a temporary file first, then rename it over `todo.json`.
 
-## 5. Better Architecture
-The logic for loading/saving is repeated in almost every function, and the state is managed purely through function calls that reload the file every time.
+## 5. Use a real CLI parser
+Manual `if/else if` argument parsing works for this tiny version, but it is brittle and hard to extend.
 
-**Recommendation:** Encapsulate the todo logic within a `TodoManager` struct. This would allow you to load the data once at the start of the program and save it at the end (or after each modification), making the code cleaner and more testable.
+**Recommendation:** Use `clap` for subcommands, help text, argument validation, and clearer usage errors.
 
-## 6. Idiomatic Rust
-- **Command Dispatch:** Replace the `if/else if` block in `main` with a `match` statement on the arguments.
-- **ID Generation:** Instead of a manual loop to find the `max_id`, use `todos.iter().map(|t| t.id).max().unwrap_or(0)`.
+## 6. Split responsibilities
+`main.rs` currently handles command parsing, business logic, storage, and output formatting in one file.
+
+**Recommendation:** Move persistence and todo operations into a small `TodoManager` or separate modules so the code is easier to test and evolve.
+
+## 7. Improve Rust idioms
+There are a few easy quality upgrades that would simplify the code.
+
+**Recommendation:** Use `match` for command dispatch, prefer `&[Todo]` over `&Vec<Todo>`, switch to `Path::new(PATH).exists()`, and use iterator helpers like `.max().unwrap_or(0)` for ID generation.
+
+## 8. Tighten the CLI behavior
+The current UX is functional but rough: `done` toggles rather than only marking done, `list` prints raw comma-separated fields, and errors like `id not found` are minimal.
+
+**Recommendation:** Decide on explicit command semantics, improve output formatting, and return consistent exit codes for failures.
+
+## 9. Keep this document aligned with the code
+An earlier note here said the current path check would not compile, but the repo does build today.
+
+**Recommendation:** Treat this file as a living summary of verified issues, not a static wish list.
